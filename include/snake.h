@@ -1,9 +1,13 @@
 #ifndef SNAKE_H
 #define SNAKE_H
 
-typedef struct Node {
+typedef struct {
     int x;
     int y;
+} Point;
+
+typedef struct Node {
+    Point c;
     struct Node *next;
 } Node;
 

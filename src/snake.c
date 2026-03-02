@@ -6,8 +6,8 @@
 void snakeAddHead(Node **snake, int x, int y) {
     Node *head = (Node*) malloc(sizeof(Node));
     CHECK(head != NULL);
-    head->x = x;
-    head->y = y;
+    head->c.x = x;
+    head->c.y = y;
     if (*snake) {
         head->next = *snake;
         *snake = head;

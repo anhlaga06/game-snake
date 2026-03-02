@@ -8,8 +8,7 @@
 #define MAX_WIDTH   30
 
 typedef struct {
-    int x;
-    int y;
+    Point c;
 } Food;
 
 typedef enum {
@@ -23,7 +22,8 @@ typedef enum {
 typedef enum {
     STATE_MENU,
     STATE_GAME_RUNNING,
-    STATE_GAME_PAUSE
+    STATE_GAME_PAUSE,
+    STATE_GAME_OVER
 } GameState;
 
 typedef enum {
