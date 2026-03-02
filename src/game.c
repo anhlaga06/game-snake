@@ -94,28 +94,25 @@ bool comparePoint(Point *c1, Point *c2) {
     return (c1->x == c2->x && c1->y == c2->y);
 }
 
-void generateFood(GameContext *context) {
-    while (true)
+bool isFoodOnSnake(Node *snake, Food *food) {
+    while (snake != NULL)
     {
-        Food *foodPtr = &context->food;
-        foodPtr->c.x = (rand() % (MAX_WIDTH - 2)) + 1;
-        foodPtr->c.y = (rand() % (MAX_HEIGHT - 2)) + 1;
-        bool isFoodOverlapSnake = false;
-        Node *node = context->snake;
-        while (node)
-        {
-            if (comparePoint(&node->c, &foodPtr->c)) {
-                isFoodOverlapSnake = true;
-                break;
-            }
-            node = node->next;
+        if (comparePoint(&snake->c, &food->c)) {
+            return true;
+            
         }
-        if (!isFoodOverlapSnake) {
-            break;
-        }
+        snake = snake->next;
     }
-    
+    return false;
 }
+
+void generateFood(GameContext *context) {
+    do {
+        context->food.c.x = (rand() % (MAX_WIDTH - 2)) + 1;
+        context->food.c.y = (rand() % (MAX_HEIGHT - 2)) + 1;
+    } while (isFoodOnSnake(context->snake, &context->food));
+}
+
 void drawBackground() {
     for (int heightIdx = 0; heightIdx < MAX_HEIGHT; heightIdx++) {
         for (int widthIdx = 0; widthIdx < MAX_WIDTH; widthIdx++) {
@@ -130,6 +127,7 @@ void drawBackground() {
         }
     }
 }
+
 void drawSnake(Node *snake) {
     int headPos = calcPosition(snake->c.x, snake->c.y);
     screenBuffer[headPos] = 'O';
@@ -141,10 +139,12 @@ void drawSnake(Node *snake) {
         snakeNode = snakeNode->next;
     }
 }
+
 void drawFood(Food food) {
     int pos = calcPosition(food.c.x, food.c.y);
     screenBuffer[pos] = '*';
 }
+
 void drawScore(unsigned int score) {
     char scoreBoard[MAX_WIDTH];
     memset(scoreBoard, ' ', sizeof(scoreBoard));
@@ -153,6 +153,7 @@ void drawScore(unsigned int score) {
     snprintf(scoreBoard, sizeof(scoreBoard), "YOUR SCORE: %d", score);
     memcpy(screenBuffer + pos, scoreBoard, strlen(scoreBoard));
 }
+
 void drawGameOver(unsigned int score) {
     drawBackground();
     char buff[MAX_WIDTH];
@@ -163,6 +164,7 @@ void drawGameOver(unsigned int score) {
     snprintf(buff, sizeof(buff), "Press \"enter\" to new game!", score);
     memcpy(screenBuffer + pos, buff, strlen(buff));
 }
+
 void gameDraw(GameContext *context) {
     switch (context->state)
     {
@@ -240,10 +242,6 @@ void gameRunningUpdate(GameContext *context) {
         break;
     }
     
-    if (checkCollision(context->snake)) {
-        context->state = STATE_GAME_OVER;
-        return;
-    }
     
     bool getEat = comparePoint(&(context->snake->c), &(context->food.c));
     if (getEat) {
@@ -251,6 +249,11 @@ void gameRunningUpdate(GameContext *context) {
         context->score += 100;
     } else {
         snakeRemoveTail(*snake);
+    }
+
+    if (checkCollision(context->snake)) {
+        context->state = STATE_GAME_OVER;
+        return;
     }
 
 }
@@ -275,7 +278,7 @@ void gameUpdate(GameContext *context) {
     
 }
 
-void render(){
+void render() {
     printf("\033[H");
     printf("%s", screenBuffer);
     fflush(stdout);
@@ -316,4 +319,5 @@ void gameRun(GameContext *context) {
         render();
         sleep(500);
     }
+    gameDeinit(context);
 }
