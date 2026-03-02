@@ -2,44 +2,25 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <windows.h>
-#include <conio.h>
-#include "snake.h"
 #include "debug.h"
-
-#define MAX_HEIGHT  15
-#define MAX_WIDTH   30
-#define UP      1
-#define DOWN    2
-#define LEFT    3
-#define RIGHT   4
-#define NONE    0
-
-typedef struct Food
-{
-    int posX;
-    int posY;
-} Food;
-
-int currDirection;
-char screenBuffer[MAX_HEIGHT * (MAX_WIDTH + 1) + 1];
-
-Node *snake;
-Food food;
+#include "input.h"
+#include "util_os.h"
+#include <string.h>
+#include "menu.h"
 
 
-void gameInit() {
+char screenBuffer[(MAX_HEIGHT + 1) * (MAX_WIDTH + 1) + 1];
+
+void gameInit(GameContext *context) {
     printf("\033[2J");      // clear
     printf("\033[?25l");    // hide cursor
-
-    snakeAddHead(&snake, 5, 5);
-    snakeAddHead(&snake, 6, 5);
-    snakeAddHead(&snake, 7, 5);
     
-    currDirection = RIGHT;
-
-    food.posX = 15;
-    food.posY = 10;
+    memset(context, 0, sizeof(*context));
+    
+    context->state = STATE_MENU;
+    context->menu.type = MENU_1;
+    context->menu.active = 1;
+    context->isExit = false;
 }
 
 void gameExit() {
@@ -47,46 +28,61 @@ void gameExit() {
 }
 
 int inputToDirection(char input) {
-    if (input == 'a' || input == 75) return LEFT;
-    if (input == 'd' || input == 77) return RIGHT;
-    if (input == 's' || input == 80) return DOWN;
-    if (input == 'w' || input == 72) return UP;
-    return NONE;
+    if (input == 'a' || input == 75) return DIR_LEFT;
+    if (input == 'd' || input == 77) return DIR_RIGHT;
+    if (input == 's' || input == 80) return DIR_DOWN;
+    if (input == 'w' || input == 72) return DIR_UP;
+    return DIR_NONE;
 }
 
-int calcPosition(int posX, int posY) {
-    return posY * (MAX_WIDTH + 1) + posX;
+int calcPosition(int x, int y) {
+    return y * (MAX_WIDTH + 1) + x;
 }
 
 bool isOppositeDirection(int dir1, int dir2) {
-    if (dir1 == LEFT && dir2 == RIGHT) return true;
-    if (dir2 == LEFT && dir1 == RIGHT) return true;
-    if (dir1 == UP && dir2 == DOWN) return true;
-    if (dir2 == UP && dir1 == DOWN) return true;
+    if (dir1 == DIR_LEFT && dir2 == DIR_RIGHT) return true;
+    if (dir2 == DIR_LEFT && dir1 == DIR_RIGHT) return true;
+    if (dir1 == DIR_UP && dir2 == DIR_DOWN) return true;
+    if (dir2 == DIR_UP && dir1 == DIR_DOWN) return true;
     return false;
 }
-void handle_input(){
-    if (kbhit()) {
-        char userInput;
-        while (kbhit()) userInput = getch(); // flush
+
+void handleInput(GameContext *context){
+    char userInput;
+    if (readInput(&userInput)) {
         int nextDirect = inputToDirection(userInput);
-        if (!isOppositeDirection(currDirection, nextDirect)) {
-            currDirection = nextDirect;
+        switch (context->state)
+        {
+            case STATE_GAME_RUNNING: {
+                if (nextDirect != DIR_NONE && !isOppositeDirection(context->direction, nextDirect)) {
+                    context->direction = nextDirect;
+                }
+                break;
+            }
+            case STATE_GAME_PAUSE: {
+                break;
+            }
+            case STATE_MENU: {
+                handleMenuInput(context, userInput);
+                break;
+            }
+            default:
+                break;
         }
     }
-    
 }
 
-void generateFood() {
+void generateFood(GameContext *context) {
     while (true)
     {
-        food.posX = (rand() % (MAX_WIDTH - 2)) + 1;
-        food.posY = (rand() % (MAX_HEIGHT - 2)) + 1;
+        Food *foodPtr = &context->food;
+        foodPtr->x = (rand() % (MAX_WIDTH - 2)) + 1;
+        foodPtr->y = (rand() % (MAX_HEIGHT - 2)) + 1;
         bool isFoodOverlapSnake = false;
-        Node *node = snake;
+        Node *node = context->snake;
         while (node)
         {
-            if (node->x == food.posX && node->y == food.posY) {
+            if (node->x == foodPtr->x && node->y == foodPtr->y) {
                 isFoodOverlapSnake = true;
                 break;
             }
@@ -112,7 +108,7 @@ void drawBackground() {
         }
     }
 }
-void drawSnake() {
+void drawSnake(Node *snake) {
     int headPos = calcPosition(snake->x, snake->y);
     screenBuffer[headPos] = 'O';
     Node *snakeNode = snake->next;
@@ -123,59 +119,104 @@ void drawSnake() {
         snakeNode = snakeNode->next;
     }
 }
-void drawFood() {
-    int pos = calcPosition(food.posX, food.posY);
+void drawFood(Food food) {
+    int pos = calcPosition(food.x, food.y);
     screenBuffer[pos] = '*';
 }
-void gameDraw() {
-    drawBackground();
-    drawSnake();
-    drawFood();
+void drawScore(unsigned int score) {
+    char scoreBoard[MAX_WIDTH];
+    memset(scoreBoard, ' ', sizeof(scoreBoard));
+    snprintf(scoreBoard, sizeof(scoreBoard), "YOUR SCORE: %d", score);
+    int pos = calcPosition(0, MAX_HEIGHT);
+    memcpy(screenBuffer + pos, scoreBoard, strlen(scoreBoard));
+}
+void gameDraw(GameContext *context) {
+    switch (context->state)
+    {
+        case STATE_GAME_RUNNING: {
+            drawBackground();
+            drawSnake(context->snake);
+            drawFood(context->food);
+            drawScore(context->score);
+            break;
+        }
+        case STATE_GAME_PAUSE: {
+            break;
+        }
+        case STATE_MENU: {
+            drawBackground();
+            drawMenu(context, screenBuffer);
+            break; 
+        }
+        default:
+            break;
+    }
 }
 
-void gameUpdate(){
-    switch (currDirection)
+void gameRunningUpdate(GameContext *context) {
+    Node **snake = &context->snake; 
+    switch (context->direction)
     {
-        case RIGHT: {
-            int headPosX = snake->x;
+        case DIR_RIGHT: {
+            int headPosX = (*snake)->x;
             headPosX = (headPosX + 1) % (MAX_WIDTH - 1);
             if (headPosX == 0) headPosX = 1;
-            snakeAddHead(&snake, headPosX, snake->y);
+            snakeAddHead(snake, headPosX, (*snake)->y);
             break;
         }
-        case LEFT: {
-            int headPosX = snake->x;
+        case DIR_LEFT: {
+            int headPosX = (*snake)->x;
             if (headPosX == 1) headPosX = MAX_WIDTH - 2;
             else headPosX--;
-            snakeAddHead(&snake, headPosX, snake->y);
+            snakeAddHead(snake, headPosX, (*snake)->y);
             break;
         }
-        case UP: {
-            int headPosY = snake->y;
+        case DIR_UP: {
+            int headPosY = (*snake)->y;
             if (headPosY == 1) headPosY = MAX_HEIGHT - 2;
             else headPosY--;
-            snakeAddHead(&snake, snake->x, headPosY);
+            snakeAddHead(snake, (*snake)->x, headPosY);
             break;
         }
-        case DOWN: {
-            int headPosY = snake->y;
+        case DIR_DOWN: {
+            int headPosY = (*snake)->y;
             headPosY = (headPosY + 1) % (MAX_HEIGHT - 1);
             if (headPosY == 0) headPosY = 1;
-            snakeAddHead(&snake, snake->x, headPosY);
+            snakeAddHead(snake, (*snake)->x, headPosY);
             break;
         }
         
         default:
         break;
     }
-    bool getEat = (snake->x == food.posX && snake->y == food.posY);
+    bool getEat = ((*snake)->x == context->food.x && (*snake)->y == context->food.y);
     if (getEat) {
-        generateFood();
+        generateFood(context);
+        context->score += 100;
     } else {
-        snakeRemoveTail(snake);
+        snakeRemoveTail(*snake);
     }
 
-    gameDraw();
+}
+
+void gameUpdate(GameContext *context) {
+    switch (context->state)
+    {
+        case STATE_GAME_RUNNING: {
+            gameRunningUpdate(context);
+            break;
+        }
+        case STATE_GAME_PAUSE: {
+            break;
+        }
+        case STATE_MENU: {
+            updateMenu(context);
+            break;
+        }
+        default:
+            break;
+    }
+    
 }
 
 void render(){
@@ -184,12 +225,40 @@ void render(){
     fflush(stdout);
 }
 
-void gameRun() {
-    bool game_running = true;
-    while (game_running) {
-        handle_input();
-        gameUpdate();
+
+void gameDeinit(GameContext *context) {
+    Node *snake = context->snake;
+    while (snake->next != NULL)
+    {
+        Node *nextNode = snake->next;
+        free(snake);
+        snake = nextNode;
+    }
+    free(context->snake);
+    context->snake = NULL;
+}
+
+void newGameInit(GameContext *context) {
+    memset(context, 0, sizeof(*context));
+    snakeAddHead(&context->snake, 5, 5);
+    snakeAddHead(&context->snake, 6, 5);
+    snakeAddHead(&context->snake, 7, 5);
+    
+    context->state = STATE_GAME_RUNNING;
+    context->isExit = false;
+    context->direction = DIR_RIGHT;
+    context->score = 0;
+
+    context->food.x = 15;
+    context->food.y = 10;
+}
+
+void gameRun(GameContext *context) {
+    while (!context->isExit) {
+        handleInput(context);
+        gameUpdate(context);
+        gameDraw(context);
         render();
-        Sleep(500);
+        sleep(500);
     }
 }

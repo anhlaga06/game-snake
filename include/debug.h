@@ -1,3 +1,6 @@
+#ifndef DEBUG_H
+#define DEBUG_H
+
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -10,3 +13,5 @@
             exit(EXIT_FAILURE); \
         } \
     } while (0)
+
+#endif

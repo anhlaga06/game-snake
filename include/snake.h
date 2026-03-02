@@ -1,3 +1,6 @@
+#ifndef SNAKE_H
+#define SNAKE_H
+
 typedef struct Node {
     int x;
     int y;
@@ -6,3 +9,5 @@ typedef struct Node {
 
 void snakeAddHead(Node **snake, int x, int y);
 void snakeRemoveTail(Node *snake);
+
+#endif

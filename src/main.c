@@ -2,8 +2,9 @@
 
 int main() {
 
-    gameInit();
-    gameRun();
+    GameContext context;
+    gameInit(&context);
+    gameRun(&context);
     gameExit();
 
     return 0;
